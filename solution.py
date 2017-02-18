@@ -1,5 +1,6 @@
 assignments = []
 
+
 def assign_value(values, box, value):
     """
     Please use this function to update your values dictionary!
@@ -9,6 +10,26 @@ def assign_value(values, box, value):
     if len(value) == 1:
         assignments.append(values.copy())
     return values
+
+
+def cross(a, b):
+    """Cross product of elements in A and elements in B."""
+
+    return [s+t for s in a for t in b]
+
+rows = 'ABCDEFGHI'
+cols = '123456789'
+
+
+boxes = cross(rows, cols)
+
+row_units = [cross(r, cols) for r in rows]
+column_units = [cross(rows, c) for c in cols]
+square_units = [cross(rs, cs) for rs in ('ABC','DEF','GHI') for cs in ('123','456','789')]
+diagonal_units = [[x[0] + x[1] for x in zip(rows, cols)]] + [[x[0] + x[1] for x in zip(rows[::-1], cols)]]
+unitlist = row_units + column_units + square_units + diagonal_units
+units = dict((s, [u for u in unitlist if s in u]) for s in boxes)
+peers = dict((s, set(sum(units[s],[]))-set([s])) for s in boxes)
 
 def naked_twins(values):
     """Eliminate values using the naked twins strategy.
@@ -22,9 +43,19 @@ def naked_twins(values):
     # Find all instances of naked twins
     # Eliminate the naked twins as possibilities for their peers
 
-def cross(A, B):
-    "Cross product of elements in A and elements in B."
-    pass
+    for unit in unitlist:
+        pairs = [p for p in unit if len(values[p]) == 2]
+
+        for peer in pairs:
+            twins = [x for x in pairs if (not x == peer) and (values[peer] == values[x])] + [ peer ]
+
+            if len(twins) == 2:
+                for box in [x for x in unit if not x in twins]:
+                    for d in values[peer]:
+                        assign_value(values, box, values[box].replace(d,''))
+
+    return values                    
+
 
 def grid_values(grid):
     """
@@ -36,27 +67,94 @@ def grid_values(grid):
             Keys: The boxes, e.g., 'A1'
             Values: The value in each box, e.g., '8'. If the box has no value, then the value will be '123456789'.
     """
-    pass
+    result = []
+
+    for v in grid:
+        result.append(v.replace('.', '123456789'))
+    
+    return dict(zip(boxes, result))
 
 def display(values):
     """
     Display the values as a 2-D grid.
     Args:
         values(dict): The sudoku in dictionary form
+
     """
-    pass
+    width = 1+max(len(values[s]) for s in boxes)
+    line = '+'.join(['-'*(width*3)]*3)
+
+    for r in rows:
+        print(''.join(values[r+c].center(width)+('|' if c in '36' else '')
+                      for c in cols))
+        if r in 'CF': print(line)
+
+    return
 
 def eliminate(values):
-    pass
+    solved_values = [box for box in values.keys() if len(values[box]) == 1]
+
+    for box in solved_values:
+        digit = values[box]
+
+        for peer in peers[box]:
+            assign_value(values, peer, values[peer].replace(digit,''))
+
+    return values
 
 def only_choice(values):
-    pass
+    for unit in unitlist:
+        for d in '123456789':
+            dplaces = [box for box in unit if d in values[box]]
+
+            if len(dplaces) == 1:
+                assign_value(values, dplaces[0], d)
+
+    return values
 
 def reduce_puzzle(values):
-    pass
+    solved_values = [box for box in values.keys() if len(values[box]) == 1]
+    stalled = False
+
+    while not stalled:
+        solved_values_before = len([box for box in values.keys() if len(values[box]) == 1])
+        values = eliminate(values)
+        values = only_choice(values)
+        values = naked_twins(values)
+
+        solved_values_after = len([box for box in values.keys() if len(values[box]) == 1])
+        stalled = solved_values_before == solved_values_after
+        if len([box for box in values.keys() if len(values[box]) == 0]):
+            return False
+
+    return values
 
 def search(values):
-    pass
+    reduced = reduce_puzzle(values)
+    
+    if reduced is False:
+        return False
+    
+        # Choose one of the unfilled squares with the fewest possibilities
+    unsolved_boxes = [box for box in reduced.keys() if len(reduced[box]) > 1]
+        
+    if len(unsolved_boxes) == 0:
+        return reduced
+    
+    chosen_box = unsolved_boxes[0]
+        
+    for box in unsolved_boxes:
+        chosen_box = box if len(reduced[box]) < len(reduced[chosen_box]) else chosen_box
+
+    for next_try in reduced[chosen_box] :
+        new_sudoku = reduced.copy()
+        new_sudoku[chosen_box] = next_try
+            
+        result = search(new_sudoku)
+        
+        if result:
+            return result
+
 
 def solve(grid):
     """
@@ -68,8 +166,14 @@ def solve(grid):
         The dictionary representation of the final sudoku grid. False if no solution exists.
     """
 
+    values = grid_values(grid)
+
+    return search(values)
+
+
 if __name__ == '__main__':
     diag_sudoku_grid = '2.............62....1....7...6..8...3...9...7...6..4...4....8....52.............3'
+
     display(solve(diag_sudoku_grid))
 
     try:
